@@ -1,0 +1,10 @@
+{
+    "summary": "tet1",
+    "space": "VIEW",
+    "description": "",
+    "attributes": {
+        "watchers": [],
+        "wiki_page_body": "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"attrs\":{\"id\":\"94477da9-3de1-4bab-8fe5-05609d5ae456\",\"indent\":0,\"textAlign\":\"justify\"},\"content\":[{\"type\":\"text\",\"text\»:\»Some text here\»}]}]}»,
+        "label": []
+    }
+}

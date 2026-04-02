@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "task-estimation-agent"
+version = "0.1.0"
+description = "Агент оценки задач TaskTracker wiki: Deep Agents + LangChain tools."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "deepagents>=0.4.12",
+  "langchain-core>=1.2.24",
+  "langchain-gigachat>=0.5.0",
+  "langchain-openai>=1.1.12",
+  "langgraph-checkpoint-postgres>=3.0.5",
+  "langgraph-cli>=0.4.19",
+  "psycopg[binary]>=3.1.18",
+  "httpx>=0.28.0",
+  "pydantic>=2.12.5",
+  "python-dotenv>=1.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

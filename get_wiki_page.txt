@@ -1,0 +1,3 @@
+curl 'https://portal.works.prod.sbt/swtr/extension/plugin/v2/rest/api/swtr_wiki_plugin/v2/wiki/unit/VIEW-9150' \
+-X 'GET' \
+-H 'Accept: application/json, text/plain, */*' 

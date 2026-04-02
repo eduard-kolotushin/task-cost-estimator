@@ -1,0 +1,15 @@
+curl 'https://portal.works.prod.sbt/swtr/rest/api/unit/v2/update/VIEW-9150' \
+-X 'PATCH' \
+-H 'Content-Type: application/json' \
+-H 'Accept: application/json, text/plain, */*' \
+-H 'Sec-Fetch-Site: same-origin' \
+-H 'Accept-Language: ru' \
+-H 'Accept-Encoding: gzip, deflate, br' \
+-H 'Sec-Fetch-Mode: cors' \
+-H 'Origin: https://portal.works.prod.sbt' \
+-H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15' \
+-H 'Referer: https://portal.works.prod.sbt/swtr/wiki/unit/VIEW-9150?space=VIEW&tenant=default&suite=wiki_page' \
+-H 'Content-Length: 327' \
+-H 'Sec-Fetch-Dest: empty' \
+-H 'Priority: u=3, i' \
+--data-raw '{"attributes":{"wiki_page_body":"{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\",\"attrs\":{\"id\":\"b5c4fb6a-49b7-49a2-858d-594df62fee34\",\"indent\":0,\"textAlign\":\"justify\"},\"content\":[{\"type\":\"text\",\"text\":\";aosdbv;osud nv;osudbv;oasubv .ksjd clkajsbd f.kajbdf.ksajbdv.kjsbd.kabc.kjBAD.CKJb.k .\"}]}]}"}}'
