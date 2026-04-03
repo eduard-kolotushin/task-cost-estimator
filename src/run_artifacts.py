@@ -36,17 +36,65 @@ def write_parent_link(run_dir: Path, payload: Dict[str, Any]) -> Path:
     return out
 
 
+def _coerce_tool_args(args: Any) -> Dict[str, Any]:
+    if isinstance(args, dict):
+        return args
+    if isinstance(args, str) and args.strip():
+        try:
+            parsed = json.loads(args)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _tool_result_is_error(res: Any) -> bool:
+    if res is None:
+        return True
+    if isinstance(res, str):
+        s = res.strip()
+        if not s:
+            return True
+        return "Error invoking tool" in s or s.startswith("Error")
+    return False
+
+
 def extract_child_code_from_wiki_ops(ops: List[Dict[str, Any]]) -> str | None:
     """Код страницы из последнего успешного create_wiki_page_estimation."""
     for op in reversed(ops):
         if op.get("tool") != "create_wiki_page_estimation":
             continue
         res = op.get("result")
+        if _tool_result_is_error(res):
+            continue
         if not isinstance(res, dict):
             continue
         code = res.get("code")
         if isinstance(code, str) and code.strip():
             return code.strip()
+    return None
+
+
+def extract_parent_child_link_from_ops(ops: List[Dict[str, Any]]) -> Dict[str, Any] | None:
+    """Последний успешный link_wiki_parent_child: parent/child из args и ответ API."""
+    for op in reversed(ops):
+        if op.get("tool") != "link_wiki_parent_child":
+            continue
+        args = _coerce_tool_args(op.get("args"))
+        parent = args.get("parent")
+        child = args.get("child")
+        if not isinstance(parent, str) or not parent.strip():
+            continue
+        if not isinstance(child, str) or not child.strip():
+            continue
+        res = op.get("result")
+        if _tool_result_is_error(res):
+            continue
+        return {
+            "parent": parent.strip(),
+            "child": child.strip(),
+            "result": res,
+        }
     return None
 
 
@@ -119,7 +167,11 @@ def extract_wiki_tool_calls_from_result(result: Dict[str, Any]) -> List[Dict[str
             continue
         for tc in _message_tool_calls(msg):
             name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
-            if name not in ("create_wiki_page_estimation", "update_wiki_page"):
+            if name not in (
+                "create_wiki_page_estimation",
+                "update_wiki_page",
+                "link_wiki_parent_child",
+            ):
                 continue
             args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", {}) or {}
             tid = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)

@@ -278,6 +278,32 @@ def update_wiki_page_tool() -> StructuredTool:
     )
 
 
+class LinkWikiParentChildInput(BaseModel):
+    parent: str = Field(..., description="Код родительской wiki-страницы, например VIEW-8278")
+    child: str = Field(
+        ...,
+        description="Код дочерней wiki-страницы (поле code из ответа create_wiki_page_estimation)",
+    )
+
+
+def _link_wiki_parent_child(parent: str, child: str) -> Dict[str, Any]:
+    client = _get_client()
+    return client.link_wiki_parent_child(parent=parent, child=child)
+
+
+def link_wiki_parent_child_tool() -> StructuredTool:
+    return StructuredTool.from_function(
+        name="link_wiki_parent_child",
+        description=(
+            "Связать wiki-страницы в иерархии: сделать child дочерней для parent "
+            "(PATCH hierarchy/link). Вызывай после успешного create_wiki_page_estimation: "
+            "parent — код родителя из запроса пользователя, child — code из ответа создания."
+        ),
+        func=_link_wiki_parent_child,
+        args_schema=LinkWikiParentChildInput,
+    )
+
+
 def all_tools() -> List[StructuredTool]:
     return [
         get_task_definition_tool(),
@@ -285,4 +311,5 @@ def all_tools() -> List[StructuredTool]:
         get_wiki_hierarchy_tool(),
         create_wiki_page_estimation_tool(),
         update_wiki_page_tool(),
+        link_wiki_parent_child_tool(),
     ]

@@ -16,6 +16,7 @@ from src.config import get_runs_dir
 from src.run_artifacts import (
     create_run_dir,
     extract_child_code_from_wiki_ops,
+    extract_parent_child_link_from_ops,
     extract_plan_from_result,
     extract_wiki_tool_calls_from_result,
     write_created_wiki,
@@ -96,8 +97,9 @@ def _single_run_main(args: argparse.Namespace) -> int:
         if getattr(args, "parent_page", None):
             user_message = (
                 user_message
-                + f"\n\n[Система] После создания страницы с оценкой она будет привязана "
-                f"к родительской wiki-странице `{args.parent_page}` (связь выполнит среда запуска)."
+                + f"\n\n[Система] После **успешного** create_wiki_page_estimation обязательно вызови "
+                f"**link_wiki_parent_child** с parent=\"{args.parent_page}\" и child=значению поля "
+                f"**code** из ответа создания страницы. Без этого вызова связь с родителем не будет создана."
             )
 
         agent = build_agent()
@@ -122,49 +124,65 @@ def _single_run_main(args: argparse.Namespace) -> int:
 
     parent_page = getattr(args, "parent_page", None)
     if not failed and parent_page:
-        child_code = extract_child_code_from_wiki_ops(wiki_ops)
-        if child_code:
-            try:
-                client = WikiClient.from_env()
-                link_res = client.link_wiki_parent_child(
-                    parent=parent_page,
-                    child=child_code,
-                )
-                write_parent_link(
-                    run_dir,
-                    {
-                        "parent": parent_page,
-                        "child": child_code,
-                        "result": link_res,
-                    },
-                )
+        link_from_tool = extract_parent_child_link_from_ops(wiki_ops)
+        if link_from_tool:
+            if link_from_tool["parent"] != parent_page.strip():
                 print(
-                    f"Связь родитель–потомок: {parent_page} → {child_code}",
+                    f"Предупреждение: link_wiki_parent_child вызван с parent={link_from_tool['parent']!r}, "
+                    f"ожидали {parent_page!r}.",
                     file=sys.stderr,
                 )
-            except Exception as e:
-                print(f"Не удалось связать с родителем {parent_page}: {e}", file=sys.stderr)
+            write_parent_link(run_dir, link_from_tool)
+            print(
+                f"Связь родитель–потомок (инструмент): {link_from_tool['parent']} → {link_from_tool['child']}",
+                file=sys.stderr,
+            )
+        else:
+            child_code = extract_child_code_from_wiki_ops(wiki_ops)
+            if child_code:
+                try:
+                    client = WikiClient.from_env()
+                    link_res = client.link_wiki_parent_child(
+                        parent=parent_page,
+                        child=child_code,
+                    )
+                    write_parent_link(
+                        run_dir,
+                        {
+                            "parent": parent_page,
+                            "child": child_code,
+                            "result": link_res,
+                            "source": "cli_fallback",
+                        },
+                    )
+                    print(
+                        f"Связь родитель–потомок (fallback после create): {parent_page} → {child_code}",
+                        file=sys.stderr,
+                    )
+                except Exception as e:
+                    print(f"Не удалось связать с родителем {parent_page}: {e}", file=sys.stderr)
+                    write_parent_link(
+                        run_dir,
+                        {
+                            "parent": parent_page,
+                            "child": child_code,
+                            "error": str(e),
+                        },
+                    )
+            else:
+                print(
+                    "Параметр --parent-page задан, но не найдена связь: "
+                    "нет вызова link_wiki_parent_child и не удалось извлечь code из create_wiki_page_estimation.",
+                    file=sys.stderr,
+                )
                 write_parent_link(
                     run_dir,
                     {
                         "parent": parent_page,
-                        "child": child_code,
-                        "error": str(e),
+                        "child": None,
+                        "error": "child_code_not_found",
                     },
                 )
-        else:
-            print(
-                "Параметр --parent-page задан, но код созданной страницы не найден в результатах.",
-                file=sys.stderr,
-            )
-            write_parent_link(
-                run_dir,
-                {
-                    "parent": parent_page,
-                    "child": None,
-                    "error": "child_code_not_found",
-                },
-            )
 
     if failed:
         write_failure_reason(run_dir, "\n\n".join(failure_parts))

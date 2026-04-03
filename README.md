@@ -52,7 +52,7 @@ uv run python -m src.main single-run --task-code VIEW-8168
 
 Устаревший алиас: `--wiki-code` (то же самое).
 
-После создания страницы с оценкой привязать её к родительской wiki-странице (PATCH hierarchy/link; только при явном параметре):
+С родительской wiki-страницей (`--parent-page`): агент после **create_wiki_page_estimation** должен вызвать **link_wiki_parent_child**; если вызова не было, но в ответе create есть `code`, CLI выполнит тот же PATCH (fallback):
 
 ```bash
 uv run python -m src.main single-run --task-code VIEW-8168 --parent-page VIEW-8278
