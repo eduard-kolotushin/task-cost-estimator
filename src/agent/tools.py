@@ -1,12 +1,13 @@
 """LangChain StructuredTools — прямые вызовы WikiClient."""
 from __future__ import annotations
 
+import ast
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.config import get_wiki_space_default
 from src.wiki.client import WikiClient
@@ -113,6 +114,67 @@ def get_wiki_hierarchy_tool() -> StructuredTool:
     )
 
 
+_ROW_KEY_ALIASES: Dict[str, str] = {
+    "komanda": "komanda",
+    "komponent": "komponent",
+    "etap": "etap",
+    "otsenka": "otsenka",
+    "kommentariy": "kommentariy",
+    "команда": "komanda",
+    "компонент": "komponent",
+    "этап": "etap",
+    "оценка": "otsenka",
+    "комментарий": "kommentariy",
+}
+
+
+def _normalize_row_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for k, v in d.items():
+        if not isinstance(k, str):
+            continue
+        nk = _ROW_KEY_ALIASES.get(k.strip().lower()) or _ROW_KEY_ALIASES.get(k)
+        if nk is None and k in _ROW_KEY_ALIASES.values():
+            nk = k
+        if nk:
+            out[nk] = v
+    return out
+
+
+def _normalize_rows_arg(rows: Any) -> List[Dict[str, Any]]:
+    """
+    Модели иногда передают rows строкой (JSON или Python repr) вместо массива — приводим к списку dict.
+    """
+    if rows is None:
+        return []
+    raw: Any = rows
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return []
+        try:
+            raw = json.loads(s)
+        except json.JSONDecodeError:
+            try:
+                raw = ast.literal_eval(s)
+            except (ValueError, SyntaxError) as e:
+                raise ValueError(
+                    "rows должен быть JSON-массивом объектов или Python-списком dict; "
+                    f"не удалось разобрать строку: {e}"
+                ) from e
+    if not isinstance(raw, list):
+        raise ValueError("rows должен быть списком объектов со полями komanda, komponent, etap, otsenka, kommentariy")
+    out: List[Dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(_normalize_row_dict(item))
+        elif hasattr(item, "model_dump"):
+            out.append(_normalize_row_dict(item.model_dump()))
+        else:
+            raise ValueError(f"Элемент rows должен быть объектом/словарём, получено: {type(item)}")
+    return out
+
+
 class EstimationRowInput(BaseModel):
     komanda: str
     komponent: str = "VIEW"
@@ -130,24 +192,35 @@ class CreateWikiPageEstimationInput(BaseModel):
     description: str = Field(default="", description="Описание юнита (можно пусто)")
     rows: List[EstimationRowInput] = Field(
         ...,
-        description="Строки таблицы оценок: Команда, Компонент (VIEW), Этап, Оценка (чел.-дни), Комментарий",
+        description=(
+            "Массив объектов (не строка). Поля: komanda, komponent, etap, otsenka, kommentariy. "
+            "Компонент в каждой строке — VIEW."
+        ),
     )
+
+    @field_validator("rows", mode="before")
+    @classmethod
+    def coerce_rows(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return _normalize_rows_arg(v)
+        if isinstance(v, list):
+            return [
+                _normalize_row_dict(item) if isinstance(item, dict) else item for item in v
+            ]
+        return v
 
 
 def _create_wiki_page_estimation(
     summary: str,
     space: str = "VIEW",
     description: str = "",
-    rows: Optional[List[Any]] = None,
+    rows: Optional[List[EstimationRowInput]] = None,
 ) -> Dict[str, Any]:
     if not rows:
         raise ValueError("rows не может быть пустым")
     parsed: List[EstimationRow] = []
     for r in rows:
-        if isinstance(r, dict):
-            parsed.append(EstimationRow.model_validate(r))
-        else:
-            parsed.append(EstimationRow.model_validate(r.model_dump() if hasattr(r, "model_dump") else r))
+        parsed.append(EstimationRow.model_validate(r.model_dump()))
     wiki_body = build_estimation_wiki_body(parsed)
     client = _get_client()
     result = client.create_wiki_page(
@@ -165,9 +238,9 @@ def create_wiki_page_estimation_tool() -> StructuredTool:
         name="create_wiki_page_estimation",
         description=(
             "Создать новую wiki-страницу с таблицей оценок (5 колонок). "
-            "Компонент в каждой строке — VIEW; оценки только в чел.-дни; "
-            "в Комментарий — декомпозиция подзадач с оценками и обоснование; "
-            "Оценка = сумма подзадач по строке."
+            "Параметр rows — массив объектов {komanda, komponent, etap, otsenka, kommentariy}; "
+            "компонент в каждой строке VIEW; этапы и блоки «Команда» — как в example_wiki_page_est_table.txt / навыке оценки. "
+            "Оценки только в чел.-дни; в Комментарий — декомпозиция и обоснование; Оценка = сумма подзадач по строке."
         ),
         func=_create_wiki_page_estimation,
         args_schema=CreateWikiPageEstimationInput,
