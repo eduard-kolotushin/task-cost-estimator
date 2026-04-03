@@ -15,7 +15,10 @@ class EstimationRow(BaseModel):
         ...,
         description="Блок из справочника: Аналитика/Проектирование | Разработка | Тестирование | Документирование (одинаковый для всех строк одной секции)",
     )
-    komponent: str = Field(default="VIEW", description="Всегда VIEW")
+    komponent: str = Field(
+        default="VIEW",
+        description="Всегда VIEW (в API; в wiki-таблице колонка не показывается — см. QA.rtf)",
+    )
     etap: str = Field(..., description="Точное имя этапа из справочника навыка (одна строка таблицы = один этап)")
     otsenka: float = Field(
         ...,

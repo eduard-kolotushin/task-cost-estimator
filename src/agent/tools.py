@@ -169,7 +169,10 @@ class EstimationRowInput(BaseModel):
         ...,
         description="Блок (секция таблицы): Аналитика/Проектирование | Разработка | Тестирование | Документирование",
     )
-    komponent: str = Field(default="VIEW", description="Всегда VIEW")
+    komponent: str = Field(
+        default="VIEW",
+        description="Всегда VIEW (поле для API; в таблице на wiki не отображается)",
+    )
     etap: str = Field(..., description="Имя этапа из справочника навыка оценки")
     otsenka: float = Field(
         ...,
@@ -196,7 +199,7 @@ class CreateWikiPageEstimationInput(BaseModel):
         ...,
         description=(
             "Массив объектов (не строка). Поля: komanda, komponent, etap, otsenka, dekompozitsiya. "
-            "Сгенерируй dekompozitsiya как многострочный текст декомпозиции; тело wiki соберёт секции по komanda, списки из dekompozitsiya и строку Итого."
+            "В wiki таблица из трёх колонок (Этап, Оценка, Декомпозиция) и секций по komanda; komponent=VIEW; Итого в конце."
         ),
     )
 
@@ -239,10 +242,9 @@ def create_wiki_page_estimation_tool() -> StructuredTool:
     return StructuredTool.from_function(
         name="create_wiki_page_estimation",
         description=(
-            "Создать новую wiki-страницу с таблицей оценок. "
-            "Ты задаёшь декомпозицию в поле dekompozitsiya (многострочный текст); при сохранении она превращается в нумерованный список в колонке «Декомпозиция». "
-            "Таблица в wiki: заголовок → секции по komanda (как в example_wiki_page_est_table.txt) → строки данных → «Итого». "
-            "rows: {komanda, komponent, etap, otsenka, dekompozitsiya}; komponent=VIEW; оценки в чел.-днях; otsenka = сумма пунктов декомпозиции по строке."
+            "Создать новую wiki-страницу с таблицей оценок (три колонки: Этап, Оценка, Декомпозиция — как QA.rtf). "
+            "Декомпозиция в dekompozitsiya (многострочный текст) → нумерованный список в третьей колонке. "
+            "Секции таблицы по полю komanda. rows: komanda, komponent, etap, otsenka, dekompozitsiya; komponent=VIEW; чел.-дни; otsenka = сумма по строке."
         ),
         func=_create_wiki_page_estimation,
         args_schema=CreateWikiPageEstimationInput,

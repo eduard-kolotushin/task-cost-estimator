@@ -1,6 +1,8 @@
-"""Сборка тела wiki_page_body в формате TipTap/ProseMirror (как в example_wiki_page_est_table.txt).
+"""Сборка тела wiki_page_body в формате TipTap/ProseMirror.
 
-TaskTracker отображает этот JSON в редакторе; формат ADF (atlassian-doc-builder) в UI не подходит.
+Структура колонок и секций как в QA.rtf / example_wiki_page_est_table.txt: три колонки
+**Этап | Оценка | Декомпозиция**, строки-секции по команде (colspan=3), строка **Итого**.
+Поля `komanda` / `komponent` в данных строк не выводятся в таблицу (нужны для API и группировки).
 """
 from __future__ import annotations
 
@@ -11,8 +13,9 @@ from typing import Any, Dict, List
 
 from src.wiki.prose import EstimationRow
 
-_TABLE_HEADERS = ["Команда", "Компонент", "Этап", "Оценка", "Декомпозиция"]
-_COL_WIDTHS = [140, 100, 280, 80, 400]
+# Как в QA.rtf: Этап | Оценка | Декомпозиция (пропорции ширин близки к шаблону)
+_TABLE_HEADERS = ["Этап", "Оценка", "Декомпозиция"]
+_COL_WIDTHS = [280, 110, 280]
 
 
 def _nid() -> str:
@@ -121,11 +124,11 @@ def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
     body_rows: List[Dict[str, Any]] = []
     ri = 0
 
-    header_cells: List[Dict[str, Any]] = []
-    for title in _TABLE_HEADERS:
-        header_cells.append(
-            _cell([_paragraph_text(title, bold=True, align="center" if title == "Оценка" else "justify")])
-        )
+    header_cells: List[Dict[str, Any]] = [
+        _cell([_paragraph_text("Этап", bold=True, align="justify")]),
+        _cell([_paragraph_text("Оценка", bold=True, align="center")]),
+        _cell([_paragraph_text("Декомпозиция", bold=True, align="justify")]),
+    ]
     body_rows.append({"type": "tableRow", "attrs": _table_row_attrs(ri), "content": header_cells})
     ri += 1
 
@@ -140,7 +143,7 @@ def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
                     "content": [
                         _cell(
                             [_paragraph_text(k, bold=True, align="center")],
-                            colspan=5,
+                            colspan=3,
                         )
                     ],
                 }
@@ -157,10 +160,8 @@ def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
                 "type": "tableRow",
                 "attrs": _table_row_attrs(ri),
                 "content": [
-                    _cell([_paragraph_text(" ", align="justify")]),
-                    _cell([_paragraph_text(r.komponent.strip(), align="justify")]),
                     _cell([_paragraph_text(r.etap.strip(), align="justify")]),
-                    _cell([_paragraph_text(otsenka_str, align="justify")]),
+                    _cell([_paragraph_text(otsenka_str, align="center")]),
                     _cell(decomp_content),
                 ],
             }
@@ -175,9 +176,7 @@ def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
             "attrs": _table_row_attrs(ri),
             "content": [
                 _cell([_paragraph_text("Итого", bold=True, align="justify")]),
-                _cell([_paragraph_text(" ", align="justify")]),
-                _cell([_paragraph_text(" ", align="justify")]),
-                _cell([_paragraph_text(tot, align="justify")]),
+                _cell([_paragraph_text(tot, align="center")]),
                 _cell([_paragraph_empty()]),
             ],
         }
