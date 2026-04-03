@@ -1,0 +1,188 @@
+Исключение: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1020)>
+
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 1319, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              encode_chunked=req.has_header('Transfer-encoding'))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1336, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1382, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1331, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1091, in _send_output
+    self.send(msg)
+    ~~~~~~~~~^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1035, in send
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1477, in connect
+    self.sock = self._context.wrap_socket(self.sock,
+                ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+                                          server_hostname=server_hostname)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/ssl.py", line 455, in wrap_socket
+    return self.sslsocket_class._create(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sock=sock,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        session=session
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/ssl.py", line 1076, in _create
+    self.do_handshake()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/ssl.py", line 1372, in do_handshake
+    self._sslobj.do_handshake()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+ssl.SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1020)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/src/main.py", line 108, in _single_run_main
+    result = run_until_done(agent, payload, config, auto_approve=True)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/src/agent/graph.py", line 175, in run_until_done
+    result = agent.invoke(
+        Command(resume={"decisions": decisions}),
+        config=config,
+    )
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/pregel/main.py", line 3296, in invoke
+    for chunk in self.stream(
+                 ~~~~~~~~~~~^
+        input,
+        ^^^^^^
+    ...<10 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    ):
+    ^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/pregel/main.py", line 2727, in stream
+    for _ in runner.tick(
+             ~~~~~~~~~~~^
+        [t for t in loop.tasks.values() if not t.writes],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        schedule_task=loop.accept_push,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/pregel/_runner.py", line 167, in tick
+    run_with_retry(
+    ~~~~~~~~~~~~~~^
+        t,
+        ^^
+    ...<10 lines>...
+        },
+        ^^
+    )
+    ^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/pregel/_retry.py", line 96, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/_internal/_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/_internal/_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 813, in _func
+    outputs = list(
+        executor.map(self._run_one, tool_calls, input_types, tool_runtimes)
+    )
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 619, in result_iterator
+    yield _result_or_cancel(fs.pop())
+          ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 317, in _result_or_cancel
+    return fut.result(timeout)
+           ~~~~~~~~~~^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 456, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langchain_core/runnables/config.py", line 579, in _wrapped_fn
+    return contexts.pop().run(fn, *args)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 1039, in _run_one
+    content = _handle_tool_error(e, flag=self._handle_tool_errors)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 430, in _handle_tool_error
+    content = flag(e)  # type: ignore [assignment, call-arg]
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 387, in _default_handle_tool_errors
+    raise e
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 1033, in _run_one
+    return self._wrap_tool_call(tool_request, execute)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/deepagents/middleware/filesystem.py", line 1356, in wrap_tool_call
+    tool_result = handler(request)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 1029, in execute
+    return self._execute_tool_sync(req, input_type, config)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 973, in _execute_tool_sync
+    content = _handle_tool_error(e, flag=self._handle_tool_errors)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 430, in _handle_tool_error
+    content = flag(e)  # type: ignore [assignment, call-arg]
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 387, in _default_handle_tool_errors
+    raise e
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langgraph/prebuilt/tool_node.py", line 930, in _execute_tool_sync
+    response = tool.invoke(call_args, config)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langchain_core/tools/base.py", line 642, in invoke
+    return self.run(tool_input, **kwargs)
+           ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langchain_core/tools/base.py", line 1001, in run
+    raise error_to_raise
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langchain_core/tools/base.py", line 967, in run
+    response = context.run(self._run, *tool_args, **tool_kwargs)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/langchain_core/tools/structured.py", line 97, in _run
+    return self.func(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/src/agent/tools.py", line 226, in _create_wiki_page_estimation
+    wiki_body = build_estimation_wiki_body(parsed)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/src/wiki/adf.py", line 167, in build_estimation_wiki_body
+    return json.dumps(build_estimation_adf_doc(rows), ensure_ascii=False)
+                      ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/src/wiki/adf.py", line 137, in build_estimation_adf_doc
+    table_rows: List = [_build_header_row()]
+                        ~~~~~~~~~~~~~~~~~^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/src/wiki/adf.py", line 93, in _build_header_row
+    row = ADFTableRow.create(dimension=5, is_header=True)
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/atlassian_doc_builder/adf_table.py", line 77, in create
+    new_row = cls()
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/atlassian_doc_builder/adf_object.py", line 236, in __new_init__
+    cls.__init__(self, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/atlassian_doc_builder/adf_object.py", line 66, in __init__
+    node_list, mark_list = adf_node_list(), adf_mark_list()
+                           ~~~~~~~~~~~~~^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/atlassian_doc_builder/adf_object.py", line 49, in adf_node_list
+    adf_schema(),
+    ~~~~~~~~~~^^
+  File "/Users/kolotushin.e.v/IdeaProjects/task-cost-estimator/.venv/lib/python3.13/site-packages/atlassian_doc_builder/adf_object.py", line 16, in adf_schema
+    with urllib.request.urlopen(schema_url) as response:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 189, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 489, in open
+    response = self._open(req, data)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 506, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 466, in _call_chain
+    result = func(*args)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 1367, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        context=self._context)
+                        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 1322, in do_open
+    raise URLError(err)
+urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1020)>
+During task with name 'tools' and id '6d087085-60b9-f830-fe94-7271a5247b3a'
