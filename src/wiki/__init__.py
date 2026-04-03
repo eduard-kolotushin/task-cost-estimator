@@ -1,1 +1,1 @@
-"""HTTP-клиент и сборка тела wiki (TipTap JSON в wiki_page_body) для TaskTracker wiki."""
+"""HTTP-клиент TaskTracker и сборка `wiki_page_body` (TipTap JSON, см. `src/wiki/adf.py`)."""

@@ -1,8 +1,9 @@
-"""Сборка тела wiki_page_body в формате TipTap/ProseMirror.
+"""Сборка тела wiki_page_body в формате TipTap/ProseMirror (JSON в `wiki_page_body`).
 
-Структура колонок и секций как в QA.rtf / example_wiki_page_est_table.txt: три колонки
-**Этап | Оценка | Декомпозиция**, строки-секции по команде (colspan=3), строка **Итого**.
-Поля `komanda` / `komponent` в данных строк не выводятся в таблицу (нужны для API и группировки).
+Имя файла `adf.py` историческое (раньше планировался ADF); фактически это сборка **не** ADF.
+
+Структура как в `QA.rtf`: три колонки **Этап | Оценка | Декомпозиция**, четыре секции и фиксированная
+сетка этапов в каждой, строка **Итого**. Поля `komanda` / `komponent` в API не дублируются колонками в wiki.
 """
 from __future__ import annotations
 
@@ -99,8 +100,8 @@ def _partition_rows(
 
 def order_estimation_rows_for_wiki_table(rows: List[EstimationRow]) -> List[EstimationRow]:
     """
-    Порядок строк для совместимости: сначала все канонические секции (в фиксированном порядке),
-    затем нестандартные komanda (порядок первого появления).
+    Упорядочивает строки ввода: сначала по четырём каноническим секциям, затем строки с нестандартным
+    `komanda` (порядок первого появления). На итоговую таблицу в wiki не влияет — сетка строится отдельно.
     """
     canonical, extra_order, extras = _partition_rows(rows)
     out: List[EstimationRow] = []
@@ -344,6 +345,6 @@ def minimal_wiki_doc_json(text: str) -> str:
     )
 
 
-# Обратная совместимость имён
+# Старые имена (раньше «ADF»); оставлены для совместимости импортов
 build_estimation_adf_doc = build_estimation_wiki_doc
 minimal_adf_doc_json = minimal_wiki_doc_json

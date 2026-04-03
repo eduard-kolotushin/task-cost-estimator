@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from src.wiki.adf import minimal_adf_doc_json
+from src.wiki.adf import minimal_wiki_doc_json
 from src.config import (
     get_tasktracker_base_url,
     get_tasktracker_basic_auth,
@@ -69,7 +69,7 @@ class WikiClient:
                 "summary": "[dry-run] Заголовок",
                 "description": "",
                 "attributes": {
-                    "wiki_page_body": minimal_adf_doc_json("Текст задачи в dry-run."),
+                    "wiki_page_body": minimal_wiki_doc_json("Текст задачи в dry-run."),
                 },
             }
         path = f"/extension/plugin/v2/rest/api/swtr_wiki_plugin/v2/wiki/unit/{code}"

@@ -173,17 +173,20 @@ class EstimationRowInput(BaseModel):
         default="VIEW",
         description="Всегда VIEW (поле для API; в таблице на wiki не отображается)",
     )
-    etap: str = Field(..., description="Имя этапа из справочника навыка оценки")
+    etap: str = Field(
+        ...,
+        description="Точное имя этапа из справочника; в wiki строка попадает в фиксированную сетку по komanda+etap",
+    )
     otsenka: float = Field(
         ...,
         ge=0,
-        description="Чел.-дни по строке; сумма должна сходиться с декомпозицией в dekompozitsiya",
+        description="Чел.-дни; при otsenka>0 декомпозиция должна согласовываться с оценкой",
     )
     dekompozitsiya: str = Field(
-        ...,
+        default="",
         description=(
-            "Текст декомпозиции для колонки «Декомпозиция»: подзадачи с оценками (чел.-дни), по одной логической строке на пункт; "
-            "инструмент соберёт нумерованный список в wiki. Порядок строк в rows может быть любым — строки сгруппируются по komanda."
+            "Строки через \\n → список в wiki. При otsenka>0: на каждой строке подзадачи обязательна оценка в чел.-днях; сумма = otsenka. "
+            "Пусто только при нуле. Порядок в rows любой."
         ),
     )
 
@@ -241,8 +244,7 @@ def create_wiki_page_estimation_tool() -> StructuredTool:
         name="create_wiki_page_estimation",
         description=(
             "Создать новую wiki-страницу с таблицей оценок (три колонки, полная сетка этапов по QA/навыку). "
-            "Декомпозиция в dekompozitsiya → нумерованный список. rows задаёт только заполненные ячейки; отсутствующие этапы в таблице будут с 0. "
-            "komponent=VIEW; чел.-дни; otsenka согласована с декомпозицией."
+            "В dekompozitsiya у каждой подзадачи должна быть оценка в чел.-днях (сумма = otsenka по строке). rows — только заполненные этапы; остальные в таблице с 0. komponent=VIEW."
         ),
         func=_create_wiki_page_estimation,
         args_schema=CreateWikiPageEstimationInput,
