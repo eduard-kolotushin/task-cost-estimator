@@ -13,6 +13,7 @@ from src.config import (
     get_tasktracker_basic_auth,
     get_tasktracker_dry_run,
     get_tasktracker_token,
+    get_tasktracker_verify_ssl,
     get_wiki_space_default,
 )
 
@@ -23,6 +24,7 @@ class WikiClient:
     token: Optional[str] = None
     basic_auth: Optional[str] = None
     dry_run: bool = False
+    verify_ssl: bool = False
     timeout: float = 300.0
 
     def __post_init__(self) -> None:
@@ -30,7 +32,7 @@ class WikiClient:
             base_url=self.base_url,
             timeout=self.timeout,
             headers=self._build_headers(),
-            verify=False,
+            verify=self.verify_ssl,
         )
 
     @classmethod
@@ -40,6 +42,7 @@ class WikiClient:
             token=get_tasktracker_token(),
             basic_auth=get_tasktracker_basic_auth(),
             dry_run=get_tasktracker_dry_run(),
+            verify_ssl=get_tasktracker_verify_ssl(),
         )
 
     def _build_headers(self) -> Dict[str, str]:

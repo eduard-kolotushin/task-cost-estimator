@@ -44,6 +44,14 @@ def get_tasktracker_dry_run() -> bool:
     return _get_bool_env("TASKTRACKER_DRY_RUN", default=False)
 
 
+def get_tasktracker_verify_ssl() -> bool:
+    """
+    True — проверять TLS-сертификат сервера TaskTracker (httpx verify=True).
+    False — не проверять (удобно при корпоративном MITM/самоподписанном сертификате).
+    """
+    return _get_bool_env("TASKTRACKER_VERIFY_SSL", default=False)
+
+
 def get_postgres_checkpoint_url() -> Optional[str]:
     return os.getenv("POSTGRES_CHECKPOINT_URL")
 

@@ -10,6 +10,10 @@ import json
 import re
 from typing import Dict, List
 
+from src.wiki.adf_schema_patch import apply_patch as _apply_adf_schema_patch
+
+_apply_adf_schema_patch()
+
 from atlassian_doc_builder import (
     ADFDoc,
     ADFListItem,
