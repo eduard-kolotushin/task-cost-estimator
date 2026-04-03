@@ -30,6 +30,26 @@ def write_failure_reason(run_dir: Path, content: str) -> Path:
     return out
 
 
+def write_parent_link(run_dir: Path, payload: Dict[str, Any]) -> Path:
+    out = run_dir / "parent_link.json"
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return out
+
+
+def extract_child_code_from_wiki_ops(ops: List[Dict[str, Any]]) -> str | None:
+    """Код страницы из последнего успешного create_wiki_page_estimation."""
+    for op in reversed(ops):
+        if op.get("tool") != "create_wiki_page_estimation":
+            continue
+        res = op.get("result")
+        if not isinstance(res, dict):
+            continue
+        code = res.get("code")
+        if isinstance(code, str) and code.strip():
+            return code.strip()
+    return None
+
+
 def _message_content(msg: Any) -> Any:
     if isinstance(msg, dict):
         return msg.get("content")

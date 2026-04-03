@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from src.config import get_wiki_space_default
 from src.wiki.client import WikiClient
 from src.wiki.prose import EstimationRow, build_estimation_wiki_body, extract_wiki_body_from_unit
 
@@ -46,6 +47,37 @@ def get_wiki_page_tool() -> StructuredTool:
         ),
         func=_get_wiki_page,
         args_schema=GetWikiPageInput,
+    )
+
+
+class GetWikiHierarchyInput(BaseModel):
+    spaces: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Коды пространств (например VIEW). Если не указано — одно пространство из WIKI_SPACE."
+        ),
+    )
+
+
+def _get_wiki_hierarchy(spaces: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    Иерархия wiki: param.root всегда null на стороне клиента (все страницы в space).
+    """
+    client = _get_client()
+    sp = spaces if spaces else [get_wiki_space_default()]
+    return client.get_wiki_hierarchy(spaces=sp)
+
+
+def get_wiki_hierarchy_tool() -> StructuredTool:
+    return StructuredTool.from_function(
+        name="get_wiki_hierarchy",
+        description=(
+            "Получить иерархию wiki-страниц в пространстве(ах). "
+            "Внутри всегда запрашивается полное дерево (root=null). "
+            "Используй для обзора структуры страниц перед/после создания оценки."
+        ),
+        func=_get_wiki_hierarchy,
+        args_schema=GetWikiHierarchyInput,
     )
 
 
@@ -144,6 +176,7 @@ def update_wiki_page_tool() -> StructuredTool:
 def all_tools() -> List[StructuredTool]:
     return [
         get_wiki_page_tool(),
+        get_wiki_hierarchy_tool(),
         create_wiki_page_estimation_tool(),
         update_wiki_page_tool(),
     ]

@@ -1,10 +1,14 @@
-"""Разбор и сборка ProseMirror JSON для wiki_page_body."""
+"""Разбор и сборка ProseMirror JSON для wiki_page_body.
+
+Схема узлов/атрибутов ориентирована на реальный ответ API (см. example_wiki_page_est_table.txt):
+table с id/tableId/columnWidths, tableRow с originalRowIndex, tableCell с numberedColumn и т.д.
+"""
 from __future__ import annotations
 
 import json
 import re
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -29,74 +33,187 @@ class EstimationRow(BaseModel):
         return "VIEW"
 
 
-def _new_para_id() -> str:
+def _nid() -> str:
     return str(uuid.uuid4())
 
 
-def _paragraph_with_text(text: str) -> Dict[str, Any]:
+def _indent_attr() -> Any:
+    """Как в примере портала: чаще объект, иногда число — в ячейках используем объект."""
+    return {"indent": 0}
+
+
+def _paragraph_block(
+    text: str,
+    *,
+    bold: bool = False,
+    text_align: str = "justify",
+    indent_simple: bool = False,
+) -> Dict[str, Any]:
+    """Параграф внутри ячейки; bold через marks как в example_wiki_page_est_table.txt."""
+    ind: Any = 0 if indent_simple else _indent_attr()
+    node: Dict[str, Any] = {
+        "type": "paragraph",
+        "attrs": {
+            "id": _nid(),
+            "indent": ind,
+            "textAlign": text_align,
+        },
+    }
+    if not text:
+        return node
+    text_node: Dict[str, Any] = {"type": "text", "text": text}
+    if bold:
+        text_node["marks"] = [{"type": "bold"}]
+    node["content"] = [text_node]
+    return node
+
+
+def _empty_paragraph_before_table() -> Dict[str, Any]:
+    """Пустой абзац перед таблицей, как в примере из wiki."""
     return {
         "type": "paragraph",
         "attrs": {
-            "id": _new_para_id(),
+            "id": _nid(),
             "indent": 0,
             "textAlign": "justify",
         },
-        "content": [{"type": "text", "text": text}],
     }
 
 
-def _cell_paragraph(text: str) -> Dict[str, Any]:
-    """Ячейка таблицы (TipTap: tableCell)."""
+def _table_attrs(*, num_columns: int) -> Dict[str, Any]:
+    """Атрибуты table из example_wiki_page_est_table.txt (адаптация под число колонок)."""
+    base = 281
+    widths = [base] * num_columns
+    return {
+        "id": _nid(),
+        "tableId": _nid(),
+        "columnWidths": widths,
+        "filters": [],
+        "sort": None,
+        "summaryRow": {},
+        "calcColumn": None,
+        "style": None,
+        "numberedActive": False,
+        "hasHeaderRow": None,
+        "hasHeaderColumn": None,
+    }
+
+
+def _row_attrs(original_row_index: int) -> Dict[str, Any]:
+    return {
+        "id": _nid(),
+        "originalRowIndex": original_row_index,
+        "filterHidden": False,
+        "readOnly": None,
+    }
+
+
+def _cell_attrs(*, colspan: int = 1, rowspan: int = 1, background_color: Optional[str] = None) -> Dict[str, Any]:
+    attrs: Dict[str, Any] = {
+        "id": _nid(),
+        "colspan": colspan,
+        "rowspan": rowspan,
+        "colwidth": None,
+        "backgroundColor": background_color,
+        "numberedColumn": {"numberedColumn": False},
+    }
+    return attrs
+
+
+def _table_cell(
+    *paragraphs: Dict[str, Any],
+    colspan: int = 1,
+    rowspan: int = 1,
+    background_color: Optional[str] = None,
+) -> Dict[str, Any]:
+    content = list(paragraphs)
     return {
         "type": "tableCell",
-        "attrs": {
-            "colspan": 1,
-            "rowspan": 1,
-            "colwidth": None,
-        },
-        "content": [_paragraph_with_text(text)],
+        "attrs": _cell_attrs(colspan=colspan, rowspan=rowspan, background_color=background_color),
+        "content": content,
     }
 
 
-def _table_row(cells: List[str]) -> Dict[str, Any]:
+def _header_cells(labels: List[str]) -> Dict[str, Any]:
+    """Первая строка: жирные заголовки, выравнивание как в примере (центр для оценки)."""
+    aligns = ["justify", "justify", "justify", "center", "left"]
+    cells = []
+    for i, label in enumerate(labels):
+        ta = aligns[i] if i < len(aligns) else "justify"
+        cells.append(
+            _table_cell(
+                _paragraph_block(label, bold=True, text_align=ta),
+                colspan=1,
+                rowspan=1,
+            )
+        )
     return {
         "type": "tableRow",
-        "content": [_cell_paragraph(c) for c in cells],
+        "attrs": _row_attrs(0),
+        "content": cells,
+    }
+
+
+def _data_row(cells_text: List[str], row_index: int) -> Dict[str, Any]:
+    """Обычная строка данных: пять ячеек."""
+    paras: List[Dict[str, Any]] = []
+    for i, t in enumerate(cells_text):
+        ta = "justify"
+        if i == 3:
+            ta = "justify"
+        paras.append(_table_cell(_paragraph_block(t, bold=False, text_align=ta, indent_simple=True)))
+    return {
+        "type": "tableRow",
+        "attrs": _row_attrs(row_index),
+        "content": paras,
     }
 
 
 def build_estimation_doc(rows: List[EstimationRow]) -> Dict[str, Any]:
     """
-    Собирает документ ProseMirror с таблицей 5×(1+N): заголовок + строки данных.
-    Имена узлов совместимы с типичным @tiptap/extension-table / prosemirror-tables.
+    Документ с таблицей 5×(1+N): заголовок + строки.
+    Структура узлов согласована с example_wiki_page_est_table.txt (атрибуты table/row/cell).
     """
     headers = ["Команда", "Компонент", "Этап", "Оценка", "Комментарий"]
-    table_content: List[Dict[str, Any]] = [
-        _table_row(headers),
-    ]
-    for r in rows:
+    num_cols = len(headers)
+
+    table_rows: List[Dict[str, Any]] = [_header_cells(headers)]
+
+    for idx, r in enumerate(rows, start=1):
         otsenka_str = str(r.otsenka) if r.otsenka == int(r.otsenka) else str(round(r.otsenka, 2))
-        table_content.append(
-            _table_row(
+        table_rows.append(
+            _data_row(
                 [
                     r.komanda.strip(),
                     r.komponent.strip(),
                     r.etap.strip(),
-                    f"{otsenka_str} чел.-дн.",
+                    otsenka_str,
                     r.kommentariy.strip(),
-                ]
+                ],
+                row_index=idx,
             )
         )
 
-    return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "table",
-                "content": table_content,
-            }
-        ],
+    table_node: Dict[str, Any] = {
+        "type": "table",
+        "attrs": _table_attrs(num_columns=num_cols),
+        "content": table_rows,
     }
+
+    doc_content: List[Dict[str, Any]] = [
+        _empty_paragraph_before_table(),
+        table_node,
+        {
+            "type": "paragraph",
+            "attrs": {
+                "id": _nid(),
+                "indent": 0,
+                "textAlign": "justify",
+            },
+        },
+    ]
+
+    return {"type": "doc", "content": doc_content}
 
 
 def build_estimation_wiki_body(rows: List[EstimationRow]) -> str:
@@ -143,7 +260,6 @@ def extract_wiki_body_from_unit(unit: Dict[str, Any]) -> str:
         v = attrs["wiki_page_body"]
         if isinstance(v, str):
             return v
-    # Плоский ключ на юните
     for key in ("wiki_page_body", "wikiPageBody"):
         v = unit.get(key)
         if isinstance(v, str):

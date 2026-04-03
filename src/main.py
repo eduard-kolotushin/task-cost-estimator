@@ -15,10 +15,12 @@ from src.agent.graph import build_agent, run_once, run_until_done
 from src.config import get_runs_dir
 from src.run_artifacts import (
     create_run_dir,
+    extract_child_code_from_wiki_ops,
     extract_plan_from_result,
     extract_wiki_tool_calls_from_result,
     write_created_wiki,
     write_failure_reason,
+    write_parent_link,
     write_plan,
 )
 from src.wiki.client import WikiClient
@@ -101,6 +103,13 @@ def _single_run_main(args: argparse.Namespace) -> int:
         else:
             user_message = args.prompt or ""
 
+        if getattr(args, "parent_page", None):
+            user_message = (
+                user_message
+                + f"\n\n[Система] После создания страницы с оценкой она будет привязана "
+                f"к родительской wiki-странице `{args.parent_page}` (связь выполнит среда запуска)."
+            )
+
         agent = build_agent()
         payload = {"messages": [{"role": "user", "content": user_message}]}
         config = {"configurable": {"thread_id": run_id}}
@@ -120,6 +129,52 @@ def _single_run_main(args: argparse.Namespace) -> int:
 
     wiki_ops = extract_wiki_tool_calls_from_result(result)
     write_created_wiki(run_dir, wiki_ops)
+
+    parent_page = getattr(args, "parent_page", None)
+    if not failed and parent_page:
+        child_code = extract_child_code_from_wiki_ops(wiki_ops)
+        if child_code:
+            try:
+                client = WikiClient.from_env()
+                link_res = client.link_wiki_parent_child(
+                    parent=parent_page,
+                    child=child_code,
+                )
+                write_parent_link(
+                    run_dir,
+                    {
+                        "parent": parent_page,
+                        "child": child_code,
+                        "result": link_res,
+                    },
+                )
+                print(
+                    f"Связь родитель–потомок: {parent_page} → {child_code}",
+                    file=sys.stderr,
+                )
+            except Exception as e:
+                print(f"Не удалось связать с родителем {parent_page}: {e}", file=sys.stderr)
+                write_parent_link(
+                    run_dir,
+                    {
+                        "parent": parent_page,
+                        "child": child_code,
+                        "error": str(e),
+                    },
+                )
+        else:
+            print(
+                "Параметр --parent-page задан, но код созданной страницы не найден в результатах.",
+                file=sys.stderr,
+            )
+            write_parent_link(
+                run_dir,
+                {
+                    "parent": parent_page,
+                    "child": None,
+                    "error": "child_code_not_found",
+                },
+            )
 
     if failed:
         write_failure_reason(run_dir, "\n\n".join(failure_parts))
@@ -156,6 +211,15 @@ def main() -> None:
     )
     single.add_argument("--wiki-code", metavar="CODE", help="Код wiki-юнита, например VIEW-9150")
     single.add_argument("--prompt", help="Текст требований (или дополнение к --wiki-code)")
+    single.add_argument(
+        "--parent-page",
+        metavar="CODE",
+        default=None,
+        help=(
+            "Код родительской wiki-страницы: после создания страницы с оценкой "
+            "вызвать API связи (child = созданная страница). Без параметра связь не выполняется."
+        ),
+    )
     single.add_argument("--output-dir", default=None, help="Каталог для артефактов")
     single.add_argument("--run-id", default=None, help="Явный id прогона")
 

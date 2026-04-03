@@ -12,6 +12,7 @@ from src.config import (
     get_tasktracker_basic_auth,
     get_tasktracker_dry_run,
     get_tasktracker_token,
+    get_wiki_space_default,
 )
 
 
@@ -121,6 +122,47 @@ class WikiClient:
         if self.dry_run:
             return {"code": code, "dry_run": True, "patched": True}
         path = f"/rest/api/unit/v2/update/{code}"
+        response = self._client.patch(path, json=body)
+        response.raise_for_status()
+        return response.json()
+
+    def get_wiki_hierarchy(
+        self,
+        *,
+        spaces: Optional[list[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        POST .../swtr_wiki_plugin/v1/wiki/unit/hierarchy
+
+        root всегда null — полное дерево в указанных пространствах.
+        """
+        space_list = spaces if spaces else [get_wiki_space_default()]
+        body: Dict[str, Any] = {
+            "param": {"eager": False, "root": None},
+            "filter": {"spaces": space_list},
+            "sort": {"type": "rank", "direction": "ASC"},
+        }
+        if self.dry_run:
+            return {
+                "dry_run": True,
+                "spaces": space_list,
+                "hierarchy_preview": [],
+            }
+        path = "/extension/plugin/v2/rest/api/swtr_wiki_plugin/v1/wiki/unit/hierarchy"
+        response = self._client.post(path, json=body)
+        response.raise_for_status()
+        return response.json()
+
+    def link_wiki_parent_child(self, parent: str, child: str) -> Dict[str, Any]:
+        """
+        PATCH .../swtr_wiki_plugin/v1/wiki/unit/hierarchy/link
+
+        Сделать страницу child дочерней для parent.
+        """
+        body = {"parent": parent.strip(), "child": child.strip()}
+        if self.dry_run:
+            return {"dry_run": True, **body, "linked": True}
+        path = "/extension/plugin/v2/rest/api/swtr_wiki_plugin/v1/wiki/unit/hierarchy/link"
         response = self._client.patch(path, json=body)
         response.raise_for_status()
         return response.json()
