@@ -14,28 +14,101 @@ from typing import Any, Dict, List
 from src.wiki.prose import EstimationRow
 
 # Как в QA.rtf: Этап | Оценка | Декомпозиция (пропорции ширин близки к шаблону)
-_TABLE_HEADERS = ["Этап", "Оценка", "Декомпозиция"]
 _COL_WIDTHS = [280, 110, 280]
+
+# В результирующей таблице wiki всегда выводятся все четыре блока.
+CANONICAL_KOMANDA_ORDER = (
+    "Аналитика/Проектирование",
+    "Разработка",
+    "Тестирование",
+    "Документирование",
+)
+
+# Фиксированный набор этапов внутри каждой секции (как в QA.rtf / SKILL); порядок строк — как здесь.
+CANONICAL_ETAPY_BY_KOMANDA: Dict[str, tuple[str, ...]] = {
+    "Аналитика/Проектирование": (
+        "Проектирование UI",
+        "Тех. проектирование",
+        "Прототип/RND",
+    ),
+    "Разработка": (
+        "Разработка ПМИ/Наполнение тестовой модели",
+        "Разработка (UI)",
+        "Разработка (Back)",
+        "Разработка (DevOps)",
+        "Отладка и DEV-тестирование",
+        "Внутрикомандное демо и исправления по замечаниям",
+    ),
+    "Тестирование": (
+        "Ручное тестирование (ST, IFT)",
+        "Разработка и прогон автотестов (ST, IFT)",
+    ),
+    "Документирование": ("Документирование",),
+}
 
 
 def _nid() -> str:
     return str(uuid.uuid4())
 
 
-def order_estimation_rows_for_wiki_table(rows: List[EstimationRow]) -> List[EstimationRow]:
-    """
-    Группирует строки по «Команде» подряд: в wiki для каждого блока одна строка-секция,
-    затем все строки этого блока. Порядок групп — по первому появлению komanda в исходном списке.
-    """
-    order_keys: List[str] = []
-    buckets: Dict[str, List[EstimationRow]] = {}
+def _join_dekompozitsiya(a: str, b: str) -> str:
+    a, b = (a or "").strip(), (b or "").strip()
+    if not a:
+        return b
+    if not b:
+        return a
+    return f"{a}\n{b}"
+
+
+def _merge_rows_same_etap(rows: List[EstimationRow]) -> EstimationRow:
+    """Суммирует otsenka и склеивает dekompozitsiya для одинакового этапа."""
+    first = rows[0]
+    if len(rows) == 1:
+        return first
+    total = sum(r.otsenka for r in rows)
+    text = rows[0].dekompozitsiya
+    for r in rows[1:]:
+        text = _join_dekompozitsiya(text, r.dekompozitsiya)
+    return EstimationRow(
+        komanda=first.komanda,
+        komponent=first.komponent,
+        etap=first.etap.strip(),
+        otsenka=total,
+        dekompozitsiya=text,
+    )
+
+
+def _partition_rows(
+    rows: List[EstimationRow],
+) -> tuple[Dict[str, List[EstimationRow]], List[str], Dict[str, List[EstimationRow]]]:
+    """Строки по каноническим komanda; неизвестные ключи — в конец (порядок первого появления)."""
+    canonical: Dict[str, List[EstimationRow]] = {k: [] for k in CANONICAL_KOMANDA_ORDER}
+    extras: Dict[str, List[EstimationRow]] = {}
+    extra_order: List[str] = []
     for r in rows:
         k = r.komanda.strip()
-        if k not in buckets:
-            buckets[k] = []
-            order_keys.append(k)
-        buckets[k].append(r)
-    return [r for k in order_keys for r in buckets[k]]
+        if k in canonical:
+            canonical[k].append(r)
+        else:
+            if k not in extras:
+                extra_order.append(k)
+                extras[k] = []
+            extras[k].append(r)
+    return canonical, extra_order, extras
+
+
+def order_estimation_rows_for_wiki_table(rows: List[EstimationRow]) -> List[EstimationRow]:
+    """
+    Порядок строк для совместимости: сначала все канонические секции (в фиксированном порядке),
+    затем нестандартные komanda (порядок первого появления).
+    """
+    canonical, extra_order, extras = _partition_rows(rows)
+    out: List[EstimationRow] = []
+    for k in CANONICAL_KOMANDA_ORDER:
+        out.extend(canonical[k])
+    for k in extra_order:
+        out.extend(extras[k])
+    return out
 
 
 def decomposition_lines_from_text(raw: str) -> List[str]:
@@ -118,8 +191,53 @@ def _ordered_list(lines: List[str]) -> Dict[str, Any]:
     }
 
 
+def _section_row(title: str, ri: int) -> Dict[str, Any]:
+    return {
+        "type": "tableRow",
+        "attrs": _table_row_attrs(ri),
+        "content": [
+            _cell([_paragraph_text(title, bold=True, align="center")], colspan=3),
+        ],
+    }
+
+
+def _data_row(r: EstimationRow, ri: int) -> Dict[str, Any]:
+    otsenka_str = str(r.otsenka) if r.otsenka == int(r.otsenka) else str(round(r.otsenka, 2))
+    raw_d = (r.dekompozitsiya or "").strip()
+    if not raw_d:
+        decomp_content: List[Dict[str, Any]] = [_paragraph_empty()]
+    else:
+        lines = decomposition_lines_from_text(r.dekompozitsiya)
+        decomp_content = [_ordered_list(lines)] if lines else [_paragraph_empty()]
+    return {
+        "type": "tableRow",
+        "attrs": _table_row_attrs(ri),
+        "content": [
+            _cell([_paragraph_text(r.etap.strip(), align="justify")]),
+            _cell([_paragraph_text(otsenka_str, align="center")]),
+            _cell(decomp_content),
+        ],
+    }
+
+
+def _index_rows_by_etap(
+    section_rows: List[EstimationRow], canonical_etaps: tuple[str, ...]
+) -> tuple[Dict[str, List[EstimationRow]], List[EstimationRow]]:
+    """Строки с этапом из справочника — по точному имени; остальные — в хвост секции."""
+    by_etap: Dict[str, List[EstimationRow]] = {e: [] for e in canonical_etaps}
+    unknown: List[EstimationRow] = []
+    canon_set = set(canonical_etaps)
+    for r in section_rows:
+        e = r.etap.strip()
+        if e in canon_set:
+            by_etap[e].append(r)
+        else:
+            unknown.append(r)
+    return by_etap, unknown
+
+
 def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
-    rows = order_estimation_rows_for_wiki_table(list(rows))
+    canonical, extra_order, extras = _partition_rows(list(rows))
     table_id = _nid()
     body_rows: List[Dict[str, Any]] = []
     ri = 0
@@ -132,41 +250,35 @@ def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
     body_rows.append({"type": "tableRow", "attrs": _table_row_attrs(ri), "content": header_cells})
     ri += 1
 
-    prev_komanda: str | None = None
-    for r in rows:
-        k = r.komanda.strip()
-        if k != prev_komanda:
-            body_rows.append(
-                {
-                    "type": "tableRow",
-                    "attrs": _table_row_attrs(ri),
-                    "content": [
-                        _cell(
-                            [_paragraph_text(k, bold=True, align="center")],
-                            colspan=3,
-                        )
-                    ],
-                }
-            )
-            ri += 1
-            prev_komanda = k
-
-        otsenka_str = str(r.otsenka) if r.otsenka == int(r.otsenka) else str(round(r.otsenka, 2))
-        lines = decomposition_lines_from_text(r.dekompozitsiya)
-        decomp_content: List[Dict[str, Any]] = [_ordered_list(lines)] if lines else [_paragraph_empty()]
-
-        body_rows.append(
-            {
-                "type": "tableRow",
-                "attrs": _table_row_attrs(ri),
-                "content": [
-                    _cell([_paragraph_text(r.etap.strip(), align="justify")]),
-                    _cell([_paragraph_text(otsenka_str, align="center")]),
-                    _cell(decomp_content),
-                ],
-            }
-        )
+    for title in CANONICAL_KOMANDA_ORDER:
+        body_rows.append(_section_row(title, ri))
         ri += 1
+        etapy = CANONICAL_ETAPY_BY_KOMANDA[title]
+        by_etap, unknown = _index_rows_by_etap(canonical[title], etapy)
+        for etap in etapy:
+            bucket = by_etap[etap]
+            if bucket:
+                merged = _merge_rows_same_etap(bucket)
+            else:
+                merged = EstimationRow(
+                    komanda=title,
+                    komponent="VIEW",
+                    etap=etap,
+                    otsenka=0,
+                    dekompozitsiya="",
+                )
+            body_rows.append(_data_row(merged, ri))
+            ri += 1
+        for r in unknown:
+            body_rows.append(_data_row(r, ri))
+            ri += 1
+
+    for title in extra_order:
+        body_rows.append(_section_row(title, ri))
+        ri += 1
+        for r in extras[title]:
+            body_rows.append(_data_row(r, ri))
+            ri += 1
 
     total = sum(x.otsenka for x in rows)
     tot = str(int(total)) if total == int(total) else str(round(total, 2))
@@ -202,9 +314,10 @@ def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
 
 
 def build_estimation_wiki_doc(rows: List[EstimationRow]) -> Dict[str, Any]:
-    """Документ TipTap: doc → пустой абзац, таблица, пустой абзац (как в example_wiki_page_est_table.txt)."""
-    if not rows:
-        raise ValueError("rows не может быть пустым")
+    """Документ TipTap: doc → пустой абзац, таблица, пустой абзац (как в example_wiki_page_est_table.txt).
+
+    `rows` может быть пустым — таблица всё равно строится по полной сетке этапов (нули).
+    """
     return {
         "type": "doc",
         "content": [

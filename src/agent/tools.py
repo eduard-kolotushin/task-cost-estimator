@@ -196,10 +196,10 @@ class CreateWikiPageEstimationInput(BaseModel):
     )
     description: str = Field(default="", description="Описание юнита (можно пусто)")
     rows: List[EstimationRowInput] = Field(
-        ...,
+        default_factory=list,
         description=(
-            "Массив объектов (не строка). Поля: komanda, komponent, etap, otsenka, dekompozitsiya. "
-            "В wiki таблица из трёх колонок (Этап, Оценка, Декомпозиция) и секций по komanda; komponent=VIEW; Итого в конце."
+            "Строки оценок (можно пусто — таблица всё равно заполнится полной сеткой этапов с нулями). "
+            "Поля: komanda, komponent, etap, otsenka, dekompozitsiya. В wiki фиксированные секции и фиксированный набор этапов в каждой (см. навык); komponent=VIEW."
         ),
     )
 
@@ -221,10 +221,8 @@ def _create_wiki_page_estimation(
     description: str = "",
     rows: Optional[List[EstimationRowInput]] = None,
 ) -> Dict[str, Any]:
-    if not rows:
-        raise ValueError("rows не может быть пустым")
     parsed: List[EstimationRow] = []
-    for r in rows:
+    for r in rows or []:
         parsed.append(EstimationRow.model_validate(r.model_dump()))
     wiki_body = build_estimation_wiki_body(parsed)
     client = _get_client()
@@ -242,9 +240,9 @@ def create_wiki_page_estimation_tool() -> StructuredTool:
     return StructuredTool.from_function(
         name="create_wiki_page_estimation",
         description=(
-            "Создать новую wiki-страницу с таблицей оценок (три колонки: Этап, Оценка, Декомпозиция — как QA.rtf). "
-            "Декомпозиция в dekompozitsiya (многострочный текст) → нумерованный список в третьей колонке. "
-            "Секции таблицы по полю komanda. rows: komanda, komponent, etap, otsenka, dekompozitsiya; komponent=VIEW; чел.-дни; otsenka = сумма по строке."
+            "Создать новую wiki-страницу с таблицей оценок (три колонки, полная сетка этапов по QA/навыку). "
+            "Декомпозиция в dekompozitsiya → нумерованный список. rows задаёт только заполненные ячейки; отсутствующие этапы в таблице будут с 0. "
+            "komponent=VIEW; чел.-дни; otsenka согласована с декомпозицией."
         ),
         func=_create_wiki_page_estimation,
         args_schema=CreateWikiPageEstimationInput,
