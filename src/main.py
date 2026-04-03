@@ -24,7 +24,7 @@ from src.run_artifacts import (
     write_plan,
 )
 from src.wiki.client import WikiClient
-from src.wiki.prose import extract_text_from_wiki_body, extract_wiki_body_from_unit
+from src.wiki.task_unit import format_task_unit_for_prompt
 
 logging.basicConfig(level=logging.INFO)
 
@@ -61,29 +61,19 @@ def _pretty_print_result(result: Dict[str, Any]) -> None:
     print(json.dumps(_serializable_result(result), ensure_ascii=False, indent=2))
 
 
-def _build_user_message_from_wiki_code(wiki_code: str) -> str:
+def _build_user_message_from_task_code(task_code: str) -> str:
+    """Текст запроса из GET /rest/api/unit/v2/{code} (см. get_task_definition.txt)."""
     client = WikiClient.from_env()
-    unit = client.get_wiki_unit(wiki_code)
-    summary = unit.get("summary") or ""
-    body_raw = extract_wiki_body_from_unit(unit)
-    body_text = extract_text_from_wiki_body(body_raw) if body_raw else ""
-    desc = unit.get("description") or unit.get("descriptionPlain") or ""
-    parts = [
-        f"Исходная wiki-задача {wiki_code}:",
-        str(summary),
-    ]
-    if desc:
-        parts.append(str(desc))
-    if body_text:
-        parts.append("Содержимое страницы (текст из тела):\n" + body_text)
-    return "\n\n".join(p for p in parts if p).strip()
+    unit = client.get_task_unit(task_code)
+    ctx = format_task_unit_for_prompt(unit)
+    return f"Задача для оценки ({task_code}):\n\n{ctx}".strip()
 
 
 def _single_run_main(args: argparse.Namespace) -> int:
     load_dotenv()
 
-    if not args.wiki_code and not args.prompt:
-        print("Ошибка: укажите --wiki-code и/или --prompt.", file=sys.stderr)
+    if not args.task_code and not args.prompt:
+        print("Ошибка: укажите --task-code и/или --prompt.", file=sys.stderr)
         return 1
 
     output_dir = args.output_dir or get_runs_dir()
@@ -95,11 +85,11 @@ def _single_run_main(args: argparse.Namespace) -> int:
     result: Dict[str, Any] = {}
 
     try:
-        if args.wiki_code and args.prompt:
-            task_msg = _build_user_message_from_wiki_code(args.wiki_code)
+        if args.task_code and args.prompt:
+            task_msg = _build_user_message_from_task_code(args.task_code)
             user_message = f"{task_msg}\n\nДополнительно: {args.prompt}"
-        elif args.wiki_code:
-            user_message = _build_user_message_from_wiki_code(args.wiki_code)
+        elif args.task_code:
+            user_message = _build_user_message_from_task_code(args.task_code)
         else:
             user_message = args.prompt or ""
 
@@ -207,10 +197,16 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", help="Команды")
     single = sub.add_parser(
         "single-run",
-        help="Один прогон: wiki-код или промпт, артефакты в каталог.",
+        help="Один прогон: код задачи (--task-code) или промпт, артефакты в каталог.",
     )
-    single.add_argument("--wiki-code", metavar="CODE", help="Код wiki-юнита, например VIEW-9150")
-    single.add_argument("--prompt", help="Текст требований (или дополнение к --wiki-code)")
+    single.add_argument(
+        "--task-code",
+        "--wiki-code",
+        dest="task_code",
+        metavar="CODE",
+        help="Код задачи (юнит) TaskTracker, например VIEW-8168. GET /rest/api/unit/v2/{code}. Алиас: --wiki-code.",
+    )
+    single.add_argument("--prompt", help="Текст требований (или дополнение к --task-code)")
     single.add_argument(
         "--parent-page",
         metavar="CODE",

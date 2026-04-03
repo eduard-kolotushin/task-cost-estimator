@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from src.config import get_wiki_space_default
 from src.wiki.client import WikiClient
 from src.wiki.prose import EstimationRow, build_estimation_wiki_body, extract_wiki_body_from_unit
+from src.wiki.task_unit import format_task_unit_for_prompt
 
 log = logging.getLogger(__name__)
 
@@ -24,11 +25,42 @@ def _get_client() -> WikiClient:
     return _client
 
 
+class GetTaskDefinitionInput(BaseModel):
+    code: str = Field(..., description="Код юнита задачи TaskTracker, например VIEW-8168")
+
+
+def _get_task_definition(code: str) -> Dict[str, Any]:
+    """GET /rest/api/unit/v2/{code}?validatorEnabled=true — задача не из wiki-плагина."""
+    client = _get_client()
+    unit = client.get_task_unit(code)
+    out: Dict[str, Any] = dict(unit) if isinstance(unit, dict) else {"raw": unit}
+    if isinstance(unit, dict):
+        out["_formatted_task_context"] = format_task_unit_for_prompt(unit)
+    return out
+
+
+def get_task_definition_tool() -> StructuredTool:
+    return StructuredTool.from_function(
+        name="get_task_definition",
+        description=(
+            "Загрузить определение задачи по коду юнита (GET /rest/api/unit/v2/{code}). "
+            "Используй для оценки: поле _formatted_task_context — краткий текст для анализа; "
+            "также в ответе полный JSON юнита (summary, description, attributes)."
+        ),
+        func=_get_task_definition,
+        args_schema=GetTaskDefinitionInput,
+    )
+
+
 class GetWikiPageInput(BaseModel):
-    code: str = Field(..., description="Код wiki-юнита TaskTracker, например VIEW-9150")
+    code: str = Field(
+        ...,
+        description="Код wiki-страницы (юнит wiki), например код после create_wiki_page_estimation",
+    )
 
 
 def _get_wiki_page(code: str) -> Dict[str, Any]:
+    """GET wiki-плагин — для проверки созданной страницы с оценками, не для исходной задачи."""
     client = _get_client()
     unit = client.get_wiki_unit(code)
     body = extract_wiki_body_from_unit(unit)
@@ -41,9 +73,9 @@ def get_wiki_page_tool() -> StructuredTool:
     return StructuredTool.from_function(
         name="get_wiki_page",
         description=(
-            "Загрузить wiki-страницу TaskTracker по коду. "
-            "В ответе есть поле _extracted_wiki_page_body — строка JSON ProseMirror; "
-            "также summary, description и остальные поля юнита."
+            "Загрузить **wiki-страницу** через wiki-плагин (не тот же ответ, что у задачи). "
+            "Используй после create_wiki_page_estimation: передай **код созданной страницы**, "
+            "чтобы проверить тело и таблицу оценок (_extracted_wiki_page_body — JSON ProseMirror)."
         ),
         func=_get_wiki_page,
         args_schema=GetWikiPageInput,
@@ -175,6 +207,7 @@ def update_wiki_page_tool() -> StructuredTool:
 
 def all_tools() -> List[StructuredTool]:
     return [
+        get_task_definition_tool(),
         get_wiki_page_tool(),
         get_wiki_hierarchy_tool(),
         create_wiki_page_estimation_tool(),

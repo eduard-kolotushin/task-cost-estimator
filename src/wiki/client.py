@@ -57,6 +57,7 @@ class WikiClient:
     def get_wiki_unit(self, code: str) -> Dict[str, Any]:
         """
         GET /extension/plugin/v2/rest/api/swtr_wiki_plugin/v2/wiki/unit/{code}
+        (только для настоящих wiki-страниц; задачи для оценки — см. get_task_unit.)
         """
         if self.dry_run:
             return {
@@ -69,6 +70,25 @@ class WikiClient:
             }
         path = f"/extension/plugin/v2/rest/api/swtr_wiki_plugin/v2/wiki/unit/{code}"
         response = self._client.get(path)
+        response.raise_for_status()
+        return response.json()
+
+    def get_task_unit(self, code: str, *, validator_enabled: bool = True) -> Dict[str, Any]:
+        """
+        GET /rest/api/unit/v2/{code}?validatorEnabled=...
+
+        Определение задачи (юнит), которую нужно оценить — не через wiki-плагин.
+        См. get_task_definition.txt
+        """
+        if self.dry_run:
+            return {
+                "code": code,
+                "summary": "[dry-run] Заголовок задачи",
+                "description": "Описание задачи для оценки (dry-run).",
+            }
+        path = f"/rest/api/unit/v2/{code}"
+        params = {"validatorEnabled": "true" if validator_enabled else "false"}
+        response = self._client.get(path, params=params)
         response.raise_for_status()
         return response.json()
 

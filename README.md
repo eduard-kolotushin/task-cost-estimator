@@ -1,6 +1,6 @@
 # Агент оценки задач (TaskTracker wiki)
 
-AI-агент на **Deep Agents** + **LangChain StructuredTools**: читает исходную wiki-страницу TaskTracker, декомпозирует работу и создаёт **новую** wiki-страницу с таблицей оценок (чел.-дни).
+AI-агент на **Deep Agents** + **LangChain StructuredTools**: загружает **задачу (юнит)** по коду через [`GET /rest/api/unit/v2/{code}`](get_task_definition.txt) (не wiki-плагин), декомпозирует работу и создаёт **новую wiki-страницу** с таблицей оценок (чел.-дни).
 
 ## Установка
 
@@ -44,27 +44,31 @@ copy .env.example .env
 uv run python -m src.main --interactive
 ```
 
-Один прогон по коду wiki:
+Один прогон по **коду задачи** (юнит, например `VIEW-8168`):
 
 ```bash
-uv run python -m src.main single-run --wiki-code VIEW-9150
+uv run python -m src.main single-run --task-code VIEW-8168
 ```
+
+Устаревший алиас: `--wiki-code` (то же самое).
 
 После создания страницы с оценкой привязать её к родительской wiki-странице (PATCH hierarchy/link; только при явном параметре):
 
 ```bash
-uv run python -m src.main single-run --wiki-code VIEW-9150 --parent-page VIEW-8278
+uv run python -m src.main single-run --task-code VIEW-8168 --parent-page VIEW-8278
 ```
 
 С дополнительным текстом:
 
 ```bash
-uv run python -m src.main single-run --wiki-code VIEW-9150 --prompt "Уточни риски интеграции."
+uv run python -m src.main single-run --task-code VIEW-8168 --prompt "Уточни риски интеграции."
 ```
 
 Артефакты: `runs/<run-id>/plan.md`, `created_wiki.json`; при `--parent-page` при успехе — `parent_link.json`.
 
-Агент может вызывать **get_wiki_hierarchy** (дерево страниц, в запросе всегда `root=null`). Примеры curl: `get_wiki_hierarchy.txt`, связь родитель–ребёнок: `link_parent_child.txt`. Образец тела таблицы из wiki: `example_wiki_page_est_table.txt`.
+Исходная задача читается через **get_task_definition** ([`get_task_definition.txt`](get_task_definition.txt)). После создания оценки в wiki агент может вызвать **get_wiki_page** по коду **созданной** страницы, чтобы проверить сохранённую таблицу.
+
+Также доступны **get_wiki_hierarchy** (дерево страниц, `root=null`), примеры: [`get_wiki_hierarchy.txt`](get_wiki_hierarchy.txt), связь родитель–ребёнок: [`link_parent_child.txt`](link_parent_child.txt), образец таблицы: [`example_wiki_page_est_table.txt`](example_wiki_page_est_table.txt).
 
 ## Навык Deep Agents
 
