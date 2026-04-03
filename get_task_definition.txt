@@ -1,0 +1,3 @@
+curl 'https://portal.works.prod.sbt/swtr/rest/api/unit/v2/VIEW-8168?validatorEnabled=true' \
+-X 'GET' \
+-H 'Accept: application/json, text/plain, */*' 
