@@ -1,4 +1,4 @@
-"""Модель строки оценки и извлечение текста из wiki_page_body (ADF / JSON с узлами text)."""
+"""Модель строки оценки и извлечение текста из wiki_page_body (TipTap/ProseMirror doc, узлы text)."""
 from __future__ import annotations
 
 import json
@@ -27,7 +27,7 @@ class EstimationRow(BaseModel):
         description=(
             "Декомпозиция работ для этой строки: несколько строк текста (\\n). "
             "Каждая строка станет пунктом нумерованного списка в wiki; укажи подзадачи с оценкой в чел.-днях и при необходимости строку «Обоснование: …». "
-            "Сервер превращает это в orderedList в колонке «Декомпозиция»."
+            "При сохранении превращается в нумерованный список в колонке «Декомпозиция» (TipTap orderedList)."
         ),
     )
 
@@ -40,7 +40,7 @@ class EstimationRow(BaseModel):
 
 
 def extract_text_from_wiki_body(wiki_page_body: str) -> str:
-    """Рекурсивно извлекает текст из JSON тела wiki (ADF или совместимого дерева) для передачи в LLM."""
+    """Рекурсивно извлекает текст из JSON тела wiki (TipTap/ProseMirror doc) для передачи в LLM."""
     try:
         data = json.loads(wiki_page_body)
     except (json.JSONDecodeError, TypeError):

@@ -77,7 +77,7 @@ def get_wiki_page_tool() -> StructuredTool:
         description=(
             "Загрузить **wiki-страницу** через wiki-плагин (не тот же ответ, что у задачи). "
             "Используй после create_wiki_page_estimation: передай **код созданной страницы**, "
-            "чтобы проверить тело и таблицу оценок (_extracted_wiki_page_body — JSON ADF)."
+            "чтобы проверить тело и таблицу оценок (_extracted_wiki_page_body — JSON doc редактора)."
         ),
         func=_get_wiki_page,
         args_schema=GetWikiPageInput,
@@ -253,7 +253,7 @@ class UpdateWikiPageInput(BaseModel):
     code: str = Field(..., description="Код wiki-юнита для обновления")
     wiki_page_body_json: str = Field(
         ...,
-        description="Полное тело wiki_page_body: строка JSON документа ADF (Atlassian Document Format)",
+        description="Полное тело wiki_page_body: строка JSON документа редактора (TipTap/ProseMirror, type: doc)",
     )
 
 

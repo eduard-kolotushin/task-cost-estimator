@@ -1,33 +1,22 @@
-"""Сборка ADF для wiki_page_body через atlassian-doc-builder.
+"""Сборка тела wiki_page_body в формате TipTap/ProseMirror (как в example_wiki_page_est_table.txt).
 
-Структура таблицы как в example_wiki_page_est_table.txt: заголовок колонок → строки-секции
-(одна ячейка на всю ширину с названием блока «Команда») → строки данных → строка «Итого».
-В колонке «Декомпозиция» — нумерованный список (orderedList).
+TaskTracker отображает этот JSON в редакторе; формат ADF (atlassian-doc-builder) в UI не подходит.
 """
 from __future__ import annotations
 
 import json
 import re
-from typing import Dict, List
-
-from src.wiki.adf_schema_patch import apply_patch as _apply_adf_schema_patch
-
-_apply_adf_schema_patch()
-
-from atlassian_doc_builder import (
-    ADFDoc,
-    ADFListItem,
-    ADFOrderList,
-    ADFParagraph,
-    ADFStrong,
-    ADFTable,
-    ADFTableRow,
-    ADFText,
-)
+import uuid
+from typing import Any, Dict, List
 
 from src.wiki.prose import EstimationRow
 
 _TABLE_HEADERS = ["Команда", "Компонент", "Этап", "Оценка", "Декомпозиция"]
+_COL_WIDTHS = [140, 100, 280, 80, 400]
+
+
+def _nid() -> str:
+    return str(uuid.uuid4())
 
 
 def order_estimation_rows_for_wiki_table(rows: List[EstimationRow]) -> List[EstimationRow]:
@@ -48,7 +37,7 @@ def order_estimation_rows_for_wiki_table(rows: List[EstimationRow]) -> List[Esti
 
 def decomposition_lines_from_text(raw: str) -> List[str]:
     """
-    Разбивает текст поля dekompozitsiya на пункты нумерованного списка.
+    Разбивает текст поля dekompozitsiya на пункты списка.
     Убирает ведущую нумерацию/маркеры строк («1. », «2) », «- »).
     """
     s = (raw or "").strip()
@@ -66,113 +55,183 @@ def decomposition_lines_from_text(raw: str) -> List[str]:
     return lines if lines else [s]
 
 
-def _paragraph_plain(text: str) -> ADFParagraph:
-    p = ADFParagraph()
-    p.add(ADFText(text if text else " "))
-    return p
+def _paragraph_empty(*, align: str = "justify") -> Dict[str, Any]:
+    return {"type": "paragraph", "attrs": {"id": _nid(), "indent": 0, "textAlign": align}}
 
 
-def _paragraph_strong(text: str) -> ADFParagraph:
-    p = ADFParagraph()
-    t = ADFText(text)
-    t.add(ADFStrong())
-    p.add(t)
-    return p
+def _paragraph_text(text: str, *, bold: bool = False, align: str = "justify") -> Dict[str, Any]:
+    node: Dict[str, Any] = {
+        "type": "paragraph",
+        "attrs": {"id": _nid(), "indent": 0, "textAlign": align},
+    }
+    t: Dict[str, Any] = {"type": "text", "text": text if text else " "}
+    if bold:
+        t["marks"] = [{"type": "bold"}]
+    node["content"] = [t]
+    return node
 
 
-def _cell_set_paragraph(cell, paragraph: ADFParagraph) -> None:
-    cell.extend_content([paragraph])
+def _table_row_attrs(original_index: int) -> Dict[str, Any]:
+    return {
+        "id": _nid(),
+        "originalRowIndex": original_index,
+        "filterHidden": False,
+        "readOnly": None,
+    }
 
 
-def _cell_set_ordered_list(cell, lines: List[str]) -> None:
-    ol = ADFOrderList()
+def _table_cell_attrs(*, colspan: int = 1, rowspan: int = 1) -> Dict[str, Any]:
+    return {
+        "id": _nid(),
+        "colspan": colspan,
+        "rowspan": rowspan,
+        "colwidth": None,
+        "backgroundColor": None,
+        "numberedColumn": {"numberedColumn": False},
+    }
+
+
+def _cell(content_blocks: List[Dict[str, Any]], *, colspan: int = 1, rowspan: int = 1) -> Dict[str, Any]:
+    return {
+        "type": "tableCell",
+        "attrs": _table_cell_attrs(colspan=colspan, rowspan=rowspan),
+        "content": content_blocks,
+    }
+
+
+def _ordered_list(lines: List[str]) -> Dict[str, Any]:
+    items: List[Dict[str, Any]] = []
     for line in lines:
-        li = ADFListItem()
-        li.extend_content([_paragraph_plain(line)])
-        ol.extend_content([li])
-    cell.extend_content([ol])
+        items.append(
+            {
+                "type": "listItem",
+                "content": [_paragraph_text(line, align="justify")],
+            }
+        )
+    return {
+        "type": "orderedList",
+        "attrs": {"start": 1, "type": None},
+        "content": items,
+    }
 
 
-def _build_header_row() -> ADFTableRow:
-    row = ADFTableRow.create(dimension=5, is_header=True)
-    for j, title in enumerate(_TABLE_HEADERS):
-        _cell_set_paragraph(row[j], _paragraph_strong(title))
-    return row
-
-
-def _build_section_row(section_title: str) -> ADFTableRow:
-    """Одна ячейка colspan=5 — как блок «Аналитика/Проектирование» в примере wiki."""
-    row = ADFTableRow.create(spanned_layout=[5])
-    _cell_set_paragraph(row[0], _paragraph_strong(section_title.strip()))
-    return row
-
-
-def _build_data_row(r: EstimationRow) -> ADFTableRow:
-    """Строка данных: колонка «Команда» пустая — блок уже в строке-секции выше."""
-    row = ADFTableRow.create(dimension=5, is_header=False)
-    otsenka_str = str(r.otsenka) if r.otsenka == int(r.otsenka) else str(round(r.otsenka, 2))
-    _cell_set_paragraph(row[0], _paragraph_plain(" "))
-    _cell_set_paragraph(row[1], _paragraph_plain(r.komponent.strip()))
-    _cell_set_paragraph(row[2], _paragraph_plain(r.etap.strip()))
-    _cell_set_paragraph(row[3], _paragraph_plain(otsenka_str))
-    lines = decomposition_lines_from_text(r.dekompozitsiya)
-    _cell_set_ordered_list(row[4], lines)
-    return row
-
-
-def _build_total_row(total: float) -> ADFTableRow:
-    row = ADFTableRow.create(dimension=5, is_header=False)
-    tot = str(int(total)) if total == int(total) else str(round(total, 2))
-    _cell_set_paragraph(row[0], _paragraph_strong("Итого"))
-    _cell_set_paragraph(row[1], _paragraph_plain(" "))
-    _cell_set_paragraph(row[2], _paragraph_plain(" "))
-    _cell_set_paragraph(row[3], _paragraph_plain(tot))
-    _cell_set_paragraph(row[4], _paragraph_plain(" "))
-    return row
-
-
-def build_estimation_adf_doc(rows: List[EstimationRow]) -> dict:
-    """Таблица с секциями по полю «Команда» и итоговой строкой."""
-    if not rows:
-        raise ValueError("rows не может быть пустым")
-
+def _build_table(rows: List[EstimationRow]) -> Dict[str, Any]:
     rows = order_estimation_rows_for_wiki_table(list(rows))
+    table_id = _nid()
+    body_rows: List[Dict[str, Any]] = []
+    ri = 0
 
-    table_rows: List = [_build_header_row()]
+    header_cells: List[Dict[str, Any]] = []
+    for title in _TABLE_HEADERS:
+        header_cells.append(
+            _cell([_paragraph_text(title, bold=True, align="center" if title == "Оценка" else "justify")])
+        )
+    body_rows.append({"type": "tableRow", "attrs": _table_row_attrs(ri), "content": header_cells})
+    ri += 1
 
     prev_komanda: str | None = None
     for r in rows:
         k = r.komanda.strip()
         if k != prev_komanda:
-            table_rows.append(_build_section_row(k))
+            body_rows.append(
+                {
+                    "type": "tableRow",
+                    "attrs": _table_row_attrs(ri),
+                    "content": [
+                        _cell(
+                            [_paragraph_text(k, bold=True, align="center")],
+                            colspan=5,
+                        )
+                    ],
+                }
+            )
+            ri += 1
             prev_komanda = k
-        table_rows.append(_build_data_row(r))
 
-    total = sum(r.otsenka for r in rows)
-    table_rows.append(_build_total_row(total))
+        otsenka_str = str(r.otsenka) if r.otsenka == int(r.otsenka) else str(round(r.otsenka, 2))
+        lines = decomposition_lines_from_text(r.dekompozitsiya)
+        decomp_content: List[Dict[str, Any]] = [_ordered_list(lines)] if lines else [_paragraph_empty()]
 
-    table = ADFTable()
-    table.extend_content(table_rows)
-    table.assign_info(
-        "attrs",
-        isNumberColumnEnabled=False,
-        layout="center",
-        displayMode="default",
-        width=1200,
+        body_rows.append(
+            {
+                "type": "tableRow",
+                "attrs": _table_row_attrs(ri),
+                "content": [
+                    _cell([_paragraph_text(" ", align="justify")]),
+                    _cell([_paragraph_text(r.komponent.strip(), align="justify")]),
+                    _cell([_paragraph_text(r.etap.strip(), align="justify")]),
+                    _cell([_paragraph_text(otsenka_str, align="justify")]),
+                    _cell(decomp_content),
+                ],
+            }
+        )
+        ri += 1
+
+    total = sum(x.otsenka for x in rows)
+    tot = str(int(total)) if total == int(total) else str(round(total, 2))
+    body_rows.append(
+        {
+            "type": "tableRow",
+            "attrs": _table_row_attrs(ri),
+            "content": [
+                _cell([_paragraph_text("Итого", bold=True, align="justify")]),
+                _cell([_paragraph_text(" ", align="justify")]),
+                _cell([_paragraph_text(" ", align="justify")]),
+                _cell([_paragraph_text(tot, align="justify")]),
+                _cell([_paragraph_empty()]),
+            ],
+        }
     )
 
-    doc = ADFDoc()
-    doc.extend_content([table])
-    return doc.render()
+    return {
+        "type": "table",
+        "attrs": {
+            "id": _nid(),
+            "tableId": table_id,
+            "columnWidths": _COL_WIDTHS,
+            "filters": [],
+            "sort": None,
+            "summaryRow": {},
+            "calcColumn": None,
+            "style": None,
+            "numberedActive": False,
+            "hasHeaderRow": None,
+            "hasHeaderColumn": None,
+        },
+        "content": body_rows,
+    }
+
+
+def build_estimation_wiki_doc(rows: List[EstimationRow]) -> Dict[str, Any]:
+    """Документ TipTap: doc → пустой абзац, таблица, пустой абзац (как в example_wiki_page_est_table.txt)."""
+    if not rows:
+        raise ValueError("rows не может быть пустым")
+    return {
+        "type": "doc",
+        "content": [
+            _paragraph_empty(),
+            _build_table(rows),
+            _paragraph_empty(),
+        ],
+    }
 
 
 def build_estimation_wiki_body(rows: List[EstimationRow]) -> str:
-    """Строка JSON для attributes.wiki_page_body (ADF)."""
-    return json.dumps(build_estimation_adf_doc(rows), ensure_ascii=False)
+    """Строка JSON для attributes.wiki_page_body (TipTap/ProseMirror doc)."""
+    return json.dumps(build_estimation_wiki_doc(rows), ensure_ascii=False)
 
 
-def minimal_adf_doc_json(text: str) -> str:
-    """Минимальный ADF-документ (один абзац) для dry-run и тестов."""
-    doc = ADFDoc()
-    doc.extend_content([_paragraph_plain(text)])
-    return json.dumps(doc.render(), ensure_ascii=False)
+def minimal_wiki_doc_json(text: str) -> str:
+    """Минимальный doc (один абзац) для dry-run и тестов."""
+    return json.dumps(
+        {
+            "type": "doc",
+            "content": [_paragraph_text(text, align="justify")],
+        },
+        ensure_ascii=False,
+    )
+
+
+# Обратная совместимость имён
+build_estimation_adf_doc = build_estimation_wiki_doc
+minimal_adf_doc_json = minimal_wiki_doc_json
