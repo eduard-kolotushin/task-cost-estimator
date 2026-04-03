@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from src.wiki.adf import minimal_adf_doc_json
 from src.config import (
     get_tasktracker_base_url,
     get_tasktracker_basic_auth,
@@ -65,7 +66,7 @@ class WikiClient:
                 "summary": "[dry-run] Заголовок",
                 "description": "",
                 "attributes": {
-                    "wiki_page_body": _minimal_doc_json("Текст задачи в dry-run."),
+                    "wiki_page_body": minimal_adf_doc_json("Текст задачи в dry-run."),
                 },
             }
         path = f"/extension/plugin/v2/rest/api/swtr_wiki_plugin/v2/wiki/unit/{code}"
@@ -186,23 +187,3 @@ class WikiClient:
         response = self._client.patch(path, json=body)
         response.raise_for_status()
         return response.json()
-
-
-def _minimal_doc_json(text: str) -> str:
-    import json
-
-    doc = {
-        "type": "doc",
-        "content": [
-            {
-                "type": "paragraph",
-                "attrs": {
-                    "id": "00000000-0000-4000-8000-000000000001",
-                    "indent": 0,
-                    "textAlign": "justify",
-                },
-                "content": [{"type": "text", "text": text}],
-            }
-        ],
-    }
-    return json.dumps(doc, ensure_ascii=False)

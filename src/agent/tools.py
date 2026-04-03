@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.config import get_wiki_space_default
 from src.wiki.client import WikiClient
-from src.wiki.prose import EstimationRow, build_estimation_wiki_body, extract_wiki_body_from_unit
+from src.wiki.adf import build_estimation_wiki_body
+from src.wiki.prose import EstimationRow, extract_wiki_body_from_unit
 from src.wiki.task_unit import format_task_unit_for_prompt
 
 log = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ def get_wiki_page_tool() -> StructuredTool:
         description=(
             "Загрузить **wiki-страницу** через wiki-плагин (не тот же ответ, что у задачи). "
             "Используй после create_wiki_page_estimation: передай **код созданной страницы**, "
-            "чтобы проверить тело и таблицу оценок (_extracted_wiki_page_body — JSON ProseMirror)."
+            "чтобы проверить тело и таблицу оценок (_extracted_wiki_page_body — JSON ADF)."
         ),
         func=_get_wiki_page,
         args_schema=GetWikiPageInput,
@@ -114,30 +115,18 @@ def get_wiki_hierarchy_tool() -> StructuredTool:
     )
 
 
-_ROW_KEY_ALIASES: Dict[str, str] = {
-    "komanda": "komanda",
-    "komponent": "komponent",
-    "etap": "etap",
-    "otsenka": "otsenka",
-    "kommentariy": "kommentariy",
-    "команда": "komanda",
-    "компонент": "komponent",
-    "этап": "etap",
-    "оценка": "otsenka",
-    "комментарий": "kommentariy",
-}
+_ROW_CANONICAL_KEYS = frozenset({"komanda", "komponent", "etap", "otsenka", "dekompozitsiya"})
 
 
 def _normalize_row_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Оставляем только ожидаемые поля API; регистр ключей не важен."""
     out: Dict[str, Any] = {}
     for k, v in d.items():
         if not isinstance(k, str):
             continue
-        nk = _ROW_KEY_ALIASES.get(k.strip().lower()) or _ROW_KEY_ALIASES.get(k)
-        if nk is None and k in _ROW_KEY_ALIASES.values():
-            nk = k
-        if nk:
-            out[nk] = v
+        lk = k.strip().lower()
+        if lk in _ROW_CANONICAL_KEYS:
+            out[lk] = v
     return out
 
 
@@ -163,7 +152,7 @@ def _normalize_rows_arg(rows: Any) -> List[Dict[str, Any]]:
                     f"не удалось разобрать строку: {e}"
                 ) from e
     if not isinstance(raw, list):
-        raise ValueError("rows должен быть списком объектов со полями komanda, komponent, etap, otsenka, kommentariy")
+        raise ValueError("rows должен быть списком объектов со полями komanda, komponent, etap, otsenka, dekompozitsiya")
     out: List[Dict[str, Any]] = []
     for item in raw:
         if isinstance(item, dict):
@@ -176,11 +165,24 @@ def _normalize_rows_arg(rows: Any) -> List[Dict[str, Any]]:
 
 
 class EstimationRowInput(BaseModel):
-    komanda: str
-    komponent: str = "VIEW"
-    etap: str
-    otsenka: float = Field(..., ge=0, description="Итог по строке, чел.-дни")
-    kommentariy: str
+    komanda: str = Field(
+        ...,
+        description="Блок (секция таблицы): Аналитика/Проектирование | Разработка | Тестирование | Документирование",
+    )
+    komponent: str = Field(default="VIEW", description="Всегда VIEW")
+    etap: str = Field(..., description="Имя этапа из справочника навыка оценки")
+    otsenka: float = Field(
+        ...,
+        ge=0,
+        description="Чел.-дни по строке; сумма должна сходиться с декомпозицией в dekompozitsiya",
+    )
+    dekompozitsiya: str = Field(
+        ...,
+        description=(
+            "Текст декомпозиции для колонки «Декомпозиция»: подзадачи с оценками (чел.-дни), по одной логической строке на пункт; "
+            "инструмент соберёт нумерованный список в wiki. Порядок строк в rows может быть любым — строки сгруппируются по komanda."
+        ),
+    )
 
 
 class CreateWikiPageEstimationInput(BaseModel):
@@ -193,8 +195,8 @@ class CreateWikiPageEstimationInput(BaseModel):
     rows: List[EstimationRowInput] = Field(
         ...,
         description=(
-            "Массив объектов (не строка). Поля: komanda, komponent, etap, otsenka, kommentariy. "
-            "Компонент в каждой строке — VIEW."
+            "Массив объектов (не строка). Поля: komanda, komponent, etap, otsenka, dekompozitsiya. "
+            "Сгенерируй dekompozitsiya как многострочный текст декомпозиции; тело wiki соберёт секции по komanda, списки из dekompozitsiya и строку Итого."
         ),
     )
 
@@ -237,10 +239,10 @@ def create_wiki_page_estimation_tool() -> StructuredTool:
     return StructuredTool.from_function(
         name="create_wiki_page_estimation",
         description=(
-            "Создать новую wiki-страницу с таблицей оценок (5 колонок). "
-            "Параметр rows — массив объектов {komanda, komponent, etap, otsenka, kommentariy}; "
-            "компонент в каждой строке VIEW; этапы и блоки «Команда» — как в example_wiki_page_est_table.txt / навыке оценки. "
-            "Оценки только в чел.-дни; в Комментарий — декомпозиция и обоснование; Оценка = сумма подзадач по строке."
+            "Создать новую wiki-страницу с таблицей оценок. "
+            "Ты задаёшь декомпозицию в поле dekompozitsiya (многострочный текст); при сохранении она превращается в нумерованный список в колонке «Декомпозиция». "
+            "Таблица в wiki: заголовок → секции по komanda (как в example_wiki_page_est_table.txt) → строки данных → «Итого». "
+            "rows: {komanda, komponent, etap, otsenka, dekompozitsiya}; komponent=VIEW; оценки в чел.-днях; otsenka = сумма пунктов декомпозиции по строке."
         ),
         func=_create_wiki_page_estimation,
         args_schema=CreateWikiPageEstimationInput,
@@ -251,7 +253,7 @@ class UpdateWikiPageInput(BaseModel):
     code: str = Field(..., description="Код wiki-юнита для обновления")
     wiki_page_body_json: str = Field(
         ...,
-        description="Полное тело wiki_page_body: строка JSON документа ProseMirror",
+        description="Полное тело wiki_page_body: строка JSON документа ADF (Atlassian Document Format)",
     )
 
 
